@@ -1,0 +1,26 @@
+{
+  "/api/auth/login": {
+    "POST": "users?_email=:email&password=:password&role!=admin"
+  },
+  "/api/auth/signup": {
+    "POST": "users?email=:email"
+  },
+  "/auth/login": {
+    "POST": "users?_email=:email&password=:password"
+  },
+  "/auth/signup": {
+    "POST": "users?email=:email"
+  },
+  "/api/users": {
+    "GET": "users",
+    "POST": "users"
+  },
+  "/api/vehicles": {
+    "GET": "vehicles",
+    "POST": "vehicles"
+  },
+  "/api/bookings": {
+    "GET": "bookings",
+    "POST": "bookings"
+  }
+}

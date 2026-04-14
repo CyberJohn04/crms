@@ -1,0 +1,50 @@
+{
+  "name": "car-rental-system",
+  "version": "1.0.0",
+  "description": "A comprehensive car rental management system built with React",
+  "main": "src/index.js",
+  "scripts": {
+    "prestart": "node scripts/free-ports.js",
+    "start": "concurrently \"npm run server\" \"react-scripts start\"",
+    "client": "react-scripts start",
+    "server": "node server/index.js",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "keywords": [
+    "car-rental",
+    "react",
+    "booking-system"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ajv": "^8.18.0",
+    "bcryptjs": "^3.0.3",
+    "concurrently": "^9.2.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.0",
+    "express": "^5.2.1",
+    "http-proxy-middleware": "^3.0.5",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.4.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "react-scripts": "5.0.1"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

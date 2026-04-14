@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: crms-app
+    ports:
+      - "3001:5000"
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: 5000
+      CLIENT_ORIGIN: http://localhost:3001
+      JWT_SECRET: car-rental-dev-secret
+      MONGODB_URI: mongodb+srv://carrental:Adfc26@carrental.rmz3oum.mongodb.net/car-rental?retryWrites=true&w=majority&appName=car-rental
+      MONGODB_DB_NAME: car-rental
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

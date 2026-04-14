@@ -1,0 +1,19 @@
+{
+  "files": {
+    "main.css": "/static/css/main.3846613a.css",
+    "main.js": "/static/js/main.6b26cb17.js",
+    "static/media/affordable.png": "/static/media/affordable.09882dd677b6e2bf786c.png",
+    "static/media/approved.png": "/static/media/approved.8556ef5e4271af774c78.png",
+    "static/media/easypickup.png": "/static/media/easypickup.91679f88d4bd2989be29.png",
+    "static/media/brandcar.png": "/static/media/brandcar.d30dd5908bd457b325fc.png",
+    "static/media/bg.png": "/static/media/bg.84a90fd1285a5e819afa.png",
+    "static/media/loginbg.png": "/static/media/loginbg.8281128f41ddf40fae2e.png",
+    "index.html": "/index.html",
+    "main.3846613a.css.map": "/static/css/main.3846613a.css.map",
+    "main.6b26cb17.js.map": "/static/js/main.6b26cb17.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.3846613a.css",
+    "static/js/main.6b26cb17.js"
+  ]
+}
