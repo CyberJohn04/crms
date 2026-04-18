@@ -4,14 +4,13 @@
   "description": "A comprehensive car rental management system built with React",
   "main": "src/index.js",
   "scripts": {
-    "prestart": "node scripts/free-ports.js",
-    "start": "concurrently \"npm run server\" \"react-scripts start\"",
-    "client": "react-scripts start",
-    "server": "node server/index.js",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
+  "prestart": "node scripts/free-ports.js",
+  "start": "concurrently \"npm run server\" \"react-scripts start\"",
+  "client": "react-scripts start",
+  "server": "node server/index.js",
+  "build": "react-scripts build",
+  "vercel-build": "react-scripts build"
+},
   "keywords": [
     "car-rental",
     "react",
