@@ -3,29 +3,25 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+
 COPY package.json package-lock.json ./
 
-# Install dependencies
 RUN npm install --legacy-peer-deps
-
-# Copy source code
 COPY src ./src
 COPY public ./public
 COPY scripts ./scripts
 
-# Build React app
+
 RUN npm run build
 
-# Stage 2: Production image with Express server
+
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy package files
 COPY package.json package-lock.json ./
 
-# Install production dependencies only
+
 RUN npm install --legacy-peer-deps --production
 
 # Copy server code

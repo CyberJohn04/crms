@@ -27,23 +27,20 @@ const UserApplication = require('./models/UserApplication');
 dotenv.config();
 
 const app = express();
-const PORT = process.env.SERVER_PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'car-rental';
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
-const VERCEL_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
-const DB_JSON_PATH = path.join(__dirname, '../public/db.json');
 
-// Configure CORS to allow both local development and production Vercel URL
-const allowedOrigins = [CLIENT_ORIGIN];
-if (VERCEL_URL && !allowedOrigins.includes(VERCEL_URL)) {
-  allowedOrigins.push(VERCEL_URL);
-}
+// ✅ Dynamic CORS — supports localhost + any Vercel URL
+const allowedOrigins = [
+  CLIENT_ORIGIN,
+  'http://localhost:3000',
+];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -55,10 +52,42 @@ app.use(
 app.use(express.json({ limit: '25mb' }));
 app.use(cookieParser());
 
-// Health check endpoint
+// ✅ MongoDB connection with caching (required for serverless/Vercel)
+let isConnected = false;
+
+const connectToDatabase = async () => {
+  if (isConnected && mongoose.connection.readyState === 1) return;
+
+  if (!MONGODB_URI) {
+    throw new Error('MONGODB_URI is missing.');
+  }
+
+  await mongoose.connect(MONGODB_URI, {
+    dbName: MONGODB_DB_NAME,
+    serverSelectionTimeoutMS: 10000,
+    maxPoolSize: 10,
+    minPoolSize: 2,
+  });
+
+  isConnected = true;
+  console.log('✓ MongoDB Atlas connected');
+};
+
+// ✅ Middleware to ensure DB is connected before handling requests
+app.use(async (req, res, next) => {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (error) {
+    console.error('DB connection error:', error.message);
+    res.status(500).json({ message: 'Database connection failed' });
+  }
+});
+
+// Health check
 app.get('/api/health', async (_req, res) => {
-  const isConnected = mongoose.connection.readyState === 1;
-  const [vehicleCount, bookingCount, paymentCount, returnCount, applicationCount] = isConnected
+  const connected = mongoose.connection.readyState === 1;
+  const [vehicleCount, bookingCount, paymentCount, returnCount, applicationCount] = connected
     ? await Promise.all([
         Vehicle.countDocuments(),
         Booking.countDocuments(),
@@ -70,7 +99,7 @@ app.get('/api/health', async (_req, res) => {
 
   res.json({
     ok: true,
-    db: isConnected ? 'connected' : 'disconnected',
+    db: connected ? 'connected' : 'disconnected',
     dbName: mongoose.connection.name || MONGODB_DB_NAME,
     vehicleCount,
     bookingCount,
@@ -80,7 +109,7 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
-// Mount route modules under /api prefix
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/vehicles', vehicleRoutes);
@@ -90,16 +119,16 @@ app.use('/api/returns', returnRoutes);
 app.use('/api/userApplications', userApplicationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
-// Seeding functions
+// Seeding helpers (unchanged from your original)
+const DB_JSON_PATH = path.join(__dirname, '../public/db.json');
+
 const loadDbSeeds = () => {
   try {
-    if (!fs.existsSync(DB_JSON_PATH)) {
-      return {};
-    }
+    if (!fs.existsSync(DB_JSON_PATH)) return {};
     const raw = fs.readFileSync(DB_JSON_PATH, 'utf8');
     return JSON.parse(raw);
   } catch (error) {
-    console.warn('Unable to read seed data from public/db.json:', error.message);
+    console.warn('Unable to read seed data:', error.message);
     return {};
   }
 };
@@ -126,7 +155,7 @@ const normalizeVehiclePayload = (body = {}) => ({
   licenseRequired: String(body.licenseRequired || 'Standard').trim(),
   description: String(body.description || '').trim(),
   features: Array.isArray(body.features)
-    ? body.features.map((feature) => String(feature || '').trim()).filter(Boolean)
+    ? body.features.map((f) => String(f || '').trim()).filter(Boolean)
     : [],
   availability: body.availability !== undefined ? Boolean(body.availability) : true,
   location: String(body.location || '').trim(),
@@ -204,100 +233,53 @@ const normalizeUserApplicationPayload = (body = {}) => ({
   updatedAt: body.updatedAt,
 });
 
-const seedVehiclesIfEmpty = async () => {
-  const existingVehicleCount = await Vehicle.countDocuments();
-  if (existingVehicleCount > 0) {
-    return;
-  }
-
-  const vehicleSeeds = loadSeedCollection('vehicles')
-    .map((vehicle) => normalizeVehiclePayload(vehicle))
-    .filter((vehicle) => vehicle.name && vehicle.category);
-
-  if (vehicleSeeds.length === 0) {
-    console.log('No vehicle seed data found. MongoDB vehicles collection will be created on first insert.');
-    return;
-  }
-
-  await Vehicle.insertMany(vehicleSeeds, { ordered: true });
-  console.log(`Seeded ${vehicleSeeds.length} vehicles into MongoDB.`);
-};
-
 const seedCollectionIfEmpty = async ({ model, key, mapItem, logLabel }) => {
   const existingCount = await model.countDocuments();
-  if (existingCount > 0) {
-    return;
-  }
-
+  if (existingCount > 0) return;
   const seeds = loadSeedCollection(key)
     .map((item) => (typeof mapItem === 'function' ? mapItem(item) : item))
     .filter(Boolean);
-
   if (seeds.length === 0) {
-    console.log(`No ${logLabel} seed data found. MongoDB collection will be created on first insert.`);
+    console.log(`No ${logLabel} seed data found.`);
     return;
   }
-
   await model.insertMany(seeds, { ordered: true });
-  console.log(`Seeded ${seeds.length} ${logLabel} into MongoDB.`);
+  console.log(`Seeded ${seeds.length} ${logLabel}.`);
 };
 
-const startServer = async () => {
-  if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI is missing. Add it to your .env file.');
+const seedVehiclesIfEmpty = async () => {
+  const existingVehicleCount = await Vehicle.countDocuments();
+  if (existingVehicleCount > 0) return;
+  const vehicleSeeds = loadSeedCollection('vehicles')
+    .map((v) => normalizeVehiclePayload(v))
+    .filter((v) => v.name && v.category);
+  if (vehicleSeeds.length === 0) {
+    console.log('No vehicle seed data found.');
+    return;
   }
+  await Vehicle.insertMany(vehicleSeeds, { ordered: true });
+  console.log(`Seeded ${vehicleSeeds.length} vehicles.`);
+};
 
-  try {
-    await mongoose.connect(MONGODB_URI, {
-      dbName: MONGODB_DB_NAME,
-      serverSelectionTimeoutMS: 10000,
-      maxPoolSize: 10,
-      minPoolSize: 2,
+// ✅ For local development only — Vercel does NOT use app.listen()
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.SERVER_PORT || 5000;
+  connectToDatabase()
+    .then(async () => {
+      await seedVehiclesIfEmpty();
+      await seedCollectionIfEmpty({ model: Booking, key: 'bookings', mapItem: normalizeBookingPayload, logLabel: 'bookings' });
+      await seedCollectionIfEmpty({ model: Payment, key: 'payments', mapItem: normalizePaymentPayload, logLabel: 'payments' });
+      await seedCollectionIfEmpty({ model: Return, key: 'returns', mapItem: normalizeReturnPayload, logLabel: 'returns' });
+      await seedCollectionIfEmpty({ model: UserApplication, key: 'userApplications', mapItem: normalizeUserApplicationPayload, logLabel: 'customer applications' });
+      app.listen(PORT, () => {
+        console.log(`✓ Server running on http://localhost:${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error('Failed to start server:', err);
+      process.exit(1);
     });
-    console.log('✓ MongoDB Atlas connected successfully');
-    console.log(`✓ Database: ${mongoose.connection.name}`);
-  } catch (error) {
-    console.error('✗ MongoDB connection failed:', error.message);
-    throw error;
-  }
+}
 
-  await seedVehiclesIfEmpty();
-  await seedCollectionIfEmpty({
-    model: Booking,
-    key: 'bookings',
-    mapItem: normalizeBookingPayload,
-    logLabel: 'bookings',
-  });
-  await seedCollectionIfEmpty({
-    model: Payment,
-    key: 'payments',
-    mapItem: normalizePaymentPayload,
-    logLabel: 'payments',
-  });
-  await seedCollectionIfEmpty({
-    model: Return,
-    key: 'returns',
-    mapItem: normalizeReturnPayload,
-    logLabel: 'returns',
-  });
-  await seedCollectionIfEmpty({
-    model: UserApplication,
-    key: 'userApplications',
-    mapItem: normalizeUserApplicationPayload,
-    logLabel: 'customer applications',
-  });
-
-  app.listen(PORT, () => {
-    const baseUrl = process.env.NODE_ENV === 'production'
-      ? (VERCEL_URL || `localhost:${PORT}`)
-      : `localhost:${PORT}`;
-    console.log(`✓ Server listening on http://${baseUrl}`);
-    console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`✓ Allowed CORS origins: ${allowedOrigins.join(', ')}`);
-  });
-};
-
-startServer().catch((error) => {
-  console.error('Failed to start server:', error);
-  process.exit(1);
-});
+// ✅ This is what Vercel uses — export the app as a serverless handler
+module.exports = app;
