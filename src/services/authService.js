@@ -1,10 +1,13 @@
 import api from './api';
 
-const AUTH_API_BASE_URL =
-  process.env.REACT_APP_AUTH_API_URL ||
-  (process.env.NODE_ENV === 'development' ? 'http://localhost:5000/api' : '/api');
+// Gawin nating simple at pareho sa api.js
+const AUTH_API_BASE_URL = '/api'; 
 
 const requestAuth = async (endpoint, options = {}) => {
+  // Siguraduhin na walang double slash
+  const url = `${AUTH_API_BASE_URL}${endpoint}`;
+  
+  const response = await fetch(url, {
   const response = await fetch(`${AUTH_API_BASE_URL}${endpoint}`, {
     credentials: 'include',
     headers: {
