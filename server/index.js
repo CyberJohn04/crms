@@ -8,12 +8,12 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
-const User = require('./models/User');
-const Vehicle = require('./models/Vehicle');
-const Booking = require('./models/Booking');
-const Payment = require('./models/Payment');
-const Return = require('./models/Return');
-const UserApplication = require('./models/UserApplication');
+const User = require('../models/User');
+const Vehicle = require('../models/Vehicle');
+const Booking = require('../models/Booking');
+const Payment = require('../models/Payment');
+const Return = require('../models/Return');
+const UserApplication = require('../models/UserApplication');
 
 dotenv.config();
 
@@ -23,11 +23,24 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'car-rental';
 const JWT_SECRET = process.env.JWT_SECRET || 'car-rental-dev-secret';
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
+const VERCEL_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
 const DB_JSON_PATH = path.join(__dirname, '../public/db.json');
+
+// Configure CORS to allow both local development and production Vercel URL
+const allowedOrigins = [CLIENT_ORIGIN];
+if (VERCEL_URL && !allowedOrigins.includes(VERCEL_URL)) {
+  allowedOrigins.push(VERCEL_URL);
+}
 
 app.use(
   cors({
-    origin: CLIENT_ORIGIN,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   })
 );
@@ -293,7 +306,7 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
-app.post(['/api/auth/signup', '/auth/signup'], async (req, res) => {
+app.post('/api/auth/signup', async (req, res) => {
   try {
     const firstName = String(req.body?.firstName || '').trim();
     const middleName = String(req.body?.middleName || '').trim();
@@ -352,7 +365,7 @@ app.post(['/api/auth/signup', '/auth/signup'], async (req, res) => {
   }
 });
 
-app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     const identifier = String(req.body?.identifier || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
@@ -385,24 +398,24 @@ app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
   }
 });
 
-app.post(['/api/auth/logout', '/auth/logout'], (_req, res) => {
+app.post('/api/auth/logout', (_req, res) => {
   res.clearCookie('authToken', authCookieOptions);
   res.json({ success: true });
 });
 
-app.get(['/api/auth/me', '/auth/me'], requireAuth, (req, res) => {
+app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json({ user: sanitizeUser(req.user) });
 });
 
-app.post(['/api/auth/forgot-password', '/auth/forgot-password'], (_req, res) => {
+app.post('/api/auth/forgot-password', (_req, res) => {
   res.json({ message: 'Password reset is not configured in this local environment yet.' });
 });
 
-app.get(['/api/users/profile', '/users/profile'], requireAuth, (req, res) => {
+app.get('/api/users/profile', requireAuth, (req, res) => {
   res.json({ user: sanitizeUser(req.user) });
 });
 
-app.put(['/api/users/profile', '/users/profile'], requireAuth, async (req, res) => {
+app.put('/api/users/profile', requireAuth, async (req, res) => {
   try {
     const updates = {
       name: String(req.body?.name || req.user.name).trim(),
@@ -432,7 +445,7 @@ app.put(['/api/users/profile', '/users/profile'], requireAuth, async (req, res) 
   }
 });
 
-app.post(['/api/users/change-password', '/users/change-password'], requireAuth, async (req, res) => {
+app.post('/api/users/change-password', requireAuth, async (req, res) => {
   try {
     const currentPassword = String(req.body?.currentPassword || '');
     const newPassword = String(req.body?.newPassword || '');
@@ -882,10 +895,19 @@ const startServer = async () => {
     throw new Error('MONGODB_URI is missing. Add it to your .env file.');
   }
 
-  await mongoose.connect(MONGODB_URI, {
-    dbName: MONGODB_DB_NAME,
-    serverSelectionTimeoutMS: 10000,
-  });
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      dbName: MONGODB_DB_NAME,
+      serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 10,
+      minPoolSize: 2,
+    });
+    console.log('✓ MongoDB Atlas connected successfully');
+    console.log(`✓ Database: ${mongoose.connection.name}`);
+  } catch (error) {
+    console.error('✗ MongoDB connection failed:', error.message);
+    throw error;
+  }
 
   await seedVehiclesIfEmpty();
   await seedCollectionIfEmpty({
@@ -914,8 +936,12 @@ const startServer = async () => {
   });
 
   app.listen(PORT, () => {
-    console.log(`Auth server listening on http://localhost:${PORT}`);
-    console.log(`MongoDB connected to database: ${mongoose.connection.name}`);
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? (VERCEL_URL || `localhost:${PORT}`)
+      : `localhost:${PORT}`;
+    console.log(`✓ Server listening on http://${baseUrl}`);
+    console.log(`✓ Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`✓ Allowed CORS origins: ${allowedOrigins.join(', ')}`);
   });
 };
 
