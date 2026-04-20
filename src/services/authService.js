@@ -1,13 +1,10 @@
 import api from './api';
 
-// Gawin nating simple at pareho sa api.js
-const AUTH_API_BASE_URL = '/api'; 
+const AUTH_API_BASE_URL =
+  process.env.REACT_APP_API_URL ||
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:5000/api' : '/api');
 
 const requestAuth = async (endpoint, options = {}) => {
-  // Siguraduhin na walang double slash
-  const url = `${AUTH_API_BASE_URL}${endpoint}`;
-  
-  const response = await fetch(url, {
   const response = await fetch(`${AUTH_API_BASE_URL}${endpoint}`, {
     credentials: 'include',
     headers: {
@@ -23,7 +20,7 @@ const requestAuth = async (endpoint, options = {}) => {
       const errorData = await response.json();
       errorMessage = errorData.message || errorMessage;
     } catch (error) {
-      // Ignore non-JSON error bodies.
+      // Ignore non-JSON error bodies
     }
     throw new Error(errorMessage);
   }
